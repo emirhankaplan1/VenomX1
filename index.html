@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VENOM X - Mobil Final</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #111;
+            font-family: 'Segoe UI', sans-serif;
+            user-select: none;
+            touch-action: none; /* Kaydırmayı engelle */
+            -webkit-tap-highlight-color: transparent;
+        }
+        canvas {
+            display: block;
+            background-color: #222;
+            position: absolute;
+            top: 0; left: 0;
+            z-index: 1; /* Canvas en altta */
+        }
+        
+        /* ANA KAPLAYICILAR (En Üstte Görünmeli) */
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 100; /* En üst katman */
+            transition: opacity 0.3s;
+        }
+        
+        /* HUD */
+        .hud {
+            position: absolute;
+            top: 10px; left: 10px; /* Mobilde biraz daha kenara */
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            z-index: 50; /* Canvas'ın üstünde */
+            text-shadow: 1px 1px 2px #000;
+            background: rgba(0,0,0,0.5);
+            padding: 8px 12px;
+            border-radius: 8px;
+            border-left: 4px solid #00ff00;
+        }
+
+        /* PAUSE BUTONU */
+        #pauseBtn {
+            position: absolute;
+            top: 10px; right: 10px;
+            color: #00ff00;
+            font-size: 24px;
+            font-weight: bold;
+            z-index: 50;
+            cursor: pointer;
+            background: rgba(0,0,0,0.6);
+            width: 40px; height: 40px;
+            border: 2px solid #00ff00;
+            border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        /* MARKET DÜZENİ (MOBİL İÇİN DÜZELTİLDİ) */
+        .shop-wrapper {
+            width: 90%;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 10px;
+            border: 1px solid #333;
+            margin: 15px 0;
+        }
+
+        .shop-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            max-height: 25vh; /* Ekranın %25'i kadar yer kaplasın */
+            overflow-y: auto; /* Kaydırma */
+            padding: 5px;
+        }
+
+        .color-card {
+            background: rgba(0,0,0,0.5);
+            padding: 5px;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            border: 1px solid #444;
+            width: 60px; /* Kartlar daha küçük */
+        }
+        .color-card.selected { border: 2px solid #00ff00; box-shadow: 0 0 10px #00ff00; background: rgba(255,255,255,0.1); }
+        .color-card.locked { opacity: 0.5; filter: grayscale(1); }
+        
+        .color-circle { width: 25px; height: 25px; border-radius: 50%; margin: 0 auto 3px; box-shadow: 0 0 5px currentColor; }
+        .price-tag { font-size: 9px; color: #ccc; font-weight: bold; }
+
+        /* BUTONLAR */
+        button.main-btn {
+            background: #00ff00; color: black; border: none;
+            padding: 12px 40px; font-size: 20px; margin: 10px;
+            cursor: pointer; border-radius: 50px; font-weight: bold;
+            box-shadow: 0 0 15px #00ff00;
+        }
+        button.main-btn:active { transform: scale(0.95); }
+
+        .coin-display {
+            font-size: 18px; color: #f1c40f;
+            background: rgba(241, 196, 15, 0.15); padding: 5px 15px;
+            border-radius: 20px; border: 1px solid #f1c40f;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .add-coin-btn {
+            background: #f1c40f; color: black; border: none;
+            width: 25px; height: 25px; border-radius: 50%;
+            font-size: 18px; font-weight: bold; cursor: pointer;
+        }
+
+        h1 { font-size: 40px; margin: 0; color: #00ff00; text-shadow: 0 0 15px #00ff00; font-style: italic; }
+        .hidden { display: none !important; }
+
+        /* REKLAM */
+        #adOverlay { z-index: 200; background: black; text-align: center; }
+        .loader {
+            border: 5px solid #f3f3f3; border-top: 5px solid #3498db;
+            border-radius: 50%; width: 50px; height: 50px;
+            animation: spin 1s linear infinite; margin: 20px auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Motivasyon */
+        #motivationPopup {
+            position: absolute; top: 20%; left: 50%; transform: translate(-50%, -50%) scale(0);
+            font-size: 40px; font-weight: 900; color: #f1c40f;
+            text-shadow: 0 0 10px #f1c40f; pointer-events: none; z-index: 60; opacity: 0; transition: all 0.3s;
+        }
+        .pop-in { transform: translate(-50%, -50%) scale(1) !important; opacity: 1 !important; }
+    </style>
+</head>
+<body>
+
+    <div id="gameHUD" class="hud hidden">
+        <div style="font-size:12px; color:#aaa;">SKOR</div>
+        <span id="scoreEl" style="font-size:20px;">0</span>
+        <div style="font-size:10px; color:#888; margin-top:5px;">EN İYİ: <span id="bestScoreEl">0</span></div>
+    </div>
+
+    <div id="pauseBtn" class="hidden" onclick="togglePause()">||</div>
+
+    <div id="motivationPopup">HARİKA!</div>
+
+    <div id="mainMenu" class="overlay">
+        <h1 id="mainTitle">VENOM X</h1>
+        <div style="margin-bottom: 10px; color:#aaa; font-size:12px;">Mobil Sürüm</div>
+        
+        <div class="coin-display">
+            <span id="totalCoins">0</span> SNK
+            <button class="add-coin-btn" onclick="openBank(null)">+</button>
+        </div>
+
+        <div class="shop-wrapper">
+            <div style="text-align:center; color:#ccc; font-size:12px; margin-bottom:5px;">MARKET</div>
+            <div class="shop-container" id="colorShop"></div>
+        </div>
+
+        <button class="main-btn" onclick="startGame()">OYNA</button>
+    </div>
+
+    <div id="gameOverScreen" class="overlay hidden">
+        <h1 style="color: #ff0000; text-shadow: 0 0 20px red;">OYUN BİTTİ</h1>
+        <h2 id="deathMsg" style="color: #ccc; margin-bottom: 20px; font-size:18px;"></h2>
+        
+        <div class="coin-display" style="margin-bottom: 20px;">
+            KAZANÇ: +<span id="earnedCoins">0</span> SNK
+        </div>
+        
+        <button class="main-btn" onclick="startGame()">TEKRAR</button>
+        <button class="main-btn" onclick="showMainMenu()" style="background:transparent; border:2px solid white; color:white; font-size:16px;">MENÜ</button>
+    </div>
+
+    <div id="bankScreen" class="overlay hidden" style="z-index: 150;">
+        <h2 style="color: #f1c40f;">SNK KAZAN</h2>
+        <p id="bankMessage" style="color:#ccc; text-align:center; padding:10px;">Reklam izle, SNK kazan!</p>
+        
+        <div onclick="watchAd()" style="background: #e74c3c; padding: 20px; border-radius: 15px; text-align: center; width: 200px; border: 2px solid white; cursor: pointer;">
+            <div style="font-size: 40px;">📺</div>
+            <div style="font-weight:bold; margin-top:10px;">REKLAM İZLE</div>
+            <div style="color:#f1c40f; font-weight:900;">+5 SNK</div>
+        </div>
+
+        <button class="main-btn" onclick="closeBank()" style="background:transparent; border:2px solid white; color:white; margin-top:30px;">KAPAT</button>
+    </div>
+
+    <div id="adOverlay" class="overlay hidden">
+        <h2>REKLAM...</h2>
+        <div class="loader"></div>
+    </div>
+
+    <div id="pauseScreen" class="overlay hidden">
+        <h1>DURAKLATILDI</h1>
+        <button class="main-btn" onclick="togglePause()">DEVAM ET</button>
+        <button class="main-btn" onclick="showMainMenu()" style="background:transparent; border:1px solid white; color:white;">MENÜ</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Mobil ekran boyutunu tam al
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const CONSTANT_SPEED = 4.5; 
+        const MAX_FOODS = 8; // Mobilde performans için yem sayısını biraz azalttım
+        const STORAGE_KEY = 'VenomX_Mobile_V2';
+
+        // --- RENKLER ---
+        const SHOP_ITEMS = [
+            { id: 'green', hue: 120, cost: 0 },
+            { id: 'blue', hue: 200, cost: 50 },
+            { id: 'red', hue: 0, cost: 100 },
+            { id: 'purple', hue: 280, cost: 250 },
+            { id: 'gold', hue: 45, cost: 500 },
+            { id: 'cyan', hue: 180, cost: 1000 },
+            { id: 'pink', hue: 300, cost: 1500 },
+            { id: 'white', hue: 0, saturation: 0, lightness: 100, cost: 2000 },
+            { id: 'orange', hue: 30, cost: 2500 },
+            { id: 'teal', hue: 160, cost: 3000 },
+            { id: 'lime', hue: 80, cost: 3500 },
+            { id: 'indigo', hue: 260, cost: 4000 }
+        ];
+
+        let playerData = { bestScore: 0, coins: 0, unlockedSkins: ['green'], selectedSkin: 'green' };
+        let gameRunning = false;
+        let isPaused = false;
+        let score = 0;
+        let targetAngle = 0;
+        let snake = { x: 0, y: 0, size: 12, angle: 0, body: [] }; // Yılan boyutu mobilde biraz küçültüldü (12px)
+        let foods = [];
+        let selectedHue = 120;
+        let selectedSaturation = 100;
+        let selectedLightness = 50;
+
+        // ELEMENTLER
+        const els = {
+            mainMenu: document.getElementById('mainMenu'),
+            gameOver: document.getElementById('gameOverScreen'),
+            hud: document.getElementById('gameHUD'),
+            pauseBtn: document.getElementById('pauseBtn'),
+            shop: document.getElementById('colorShop'),
+            coins: document.getElementById('totalCoins'),
+            bankScreen: document.getElementById('bankScreen'),
+            bankMsg: document.getElementById('bankMessage'),
+            adOverlay: document.getElementById('adOverlay'),
+            pauseScreen: document.getElementById('pauseScreen'),
+            score: document.getElementById('scoreEl'),
+            best: document.getElementById('bestScoreEl'),
+            deathMsg: document.getElementById('deathMsg'),
+            earned: document.getElementById('earnedCoins'),
+            motivation: document.getElementById('motivationPopup'),
+            mainTitle: document.getElementById('mainTitle')
+        };
+
+        // --- YÜKLEME ---
+        function loadData() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) playerData = { ...playerData, ...JSON.parse(saved) };
+            } catch(e) {}
+            updateUI();
+            renderShop();
+        }
+
+        function saveData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(playerData));
+            updateUI();
+        }
+
+        function updateUI() {
+            els.coins.innerText = Math.floor(playerData.coins);
+            els.best.innerText = playerData.bestScore;
+            const skin = SHOP_ITEMS.find(i => i.id === playerData.selectedSkin) || SHOP_ITEMS[0];
+            selectedHue = skin.hue;
+            selectedSaturation = skin.saturation !== undefined ? skin.saturation : 100;
+            selectedLightness = skin.lightness !== undefined ? skin.lightness : 50;
+            
+            const color = `hsl(${skin.hue}, ${selectedSaturation}%, ${selectedLightness}%)`;
+            els.mainTitle.style.color = color;
+            els.mainTitle.style.textShadow = `0 0 15px ${color}`;
+            els.hud.style.borderLeftColor = color;
+        }
+
+        // --- MARKET ---
+        function renderShop() {
+            els.shop.innerHTML = '';
+            SHOP_ITEMS.forEach(item => {
+                const isUnlocked = playerData.unlockedSkins.includes(item.id);
+                const isSelected = playerData.selectedSkin === item.id;
+                const s = item.saturation !== undefined ? item.saturation : 100;
+                const l = item.lightness !== undefined ? item.lightness : 50;
+                const color = `hsl(${item.hue}, ${s}%, ${l}%)`;
+
+                const div = document.createElement('div');
+                div.className = `color-card ${isSelected ? 'selected' : ''} ${!isUnlocked ? 'locked' : ''}`;
+                div.innerHTML = `
+                    <div class="color-circle" style="background:${color}; box-shadow:0 0 5px ${color}"></div>
+                    <div class="price-tag" style="color:${isUnlocked ? color : '#999'}">
+                        ${isUnlocked ? (isSelected ? 'SEÇİLDİ' : 'SEÇ') : item.cost}
+                    </div>
+                `;
+                div.onclick = () => handleShopClick(item);
+                els.shop.appendChild(div);
+            });
+        }
+
+        function handleShopClick(item) {
+            if (playerData.unlockedSkins.includes(item.id)) {
+                playerData.selectedSkin = item.id;
+                saveData();
+                renderShop();
+            } else {
+                if (playerData.coins >= item.cost) {
+                    if(confirm(`${item.cost} SNK ödeyerek bu rengi aç?`)) {
+                        playerData.coins -= item.cost;
+                        playerData.unlockedSkins.push(item.id);
+                        playerData.selectedSkin = item.id;
+                        saveData();
+                        renderShop();
+                    }
+                } else {
+                    openBank(item);
+                }
+            }
+        }
+
+        function openBank(item) {
+            els.bankScreen.classList.remove('hidden');
+            if(item) {
+                const need = item.cost - Math.floor(playerData.coins);
+                els.bankMsg.innerText = `Yetersiz Bakiye! ${need} SNK daha lazım.`;
+            } else {
+                els.bankMsg.innerText = "Reklam izle, SNK kazan!";
+            }
+        }
+
+        function closeBank() { els.bankScreen.classList.add('hidden'); }
+
+        function watchAd() {
+            els.adOverlay.classList.remove('hidden');
+            setTimeout(() => {
+                els.adOverlay.classList.add('hidden');
+                playerData.coins += 5;
+                saveData();
+                alert("5 SNK Kazandın!");
+                closeBank();
+            }, 3000);
+        }
+
+        // --- OYUN ---
+        function startGame() {
+            els.mainMenu.classList.add('hidden');
+            els.gameOver.classList.add('hidden');
+            els.pauseScreen.classList.add('hidden');
+            els.hud.classList.remove('hidden');
+            els.pauseBtn.classList.remove('hidden');
+
+            score = 0;
+            els.score.innerText = "0";
+            isPaused = false;
+
+            snake.x = canvas.width / 2;
+            snake.y = canvas.height / 2;
+            snake.angle = 0;
+            targetAngle = 0;
+            snake.body = [];
+            for(let i=0; i<20; i++) snake.body.push({x: snake.x - (i*5), y: snake.y});
+
+            foods = [];
+            for(let i=0; i<MAX_FOODS; i++) spawnFood();
+
+            gameRunning = true;
+            loop();
+        }
+
+        function handleGameOver(reason) {
+            gameRunning = false;
+            
+            const earned = Math.floor(score * 0.10);
+            playerData.coins += earned;
+            if (score > playerData.bestScore) playerData.bestScore = score;
+            saveData();
+
+            els.deathMsg.innerText = reason;
+            els.earned.innerText = earned;
+
+            // GECİKMESİZ GÖSTERİM İÇİN CLASS İŞLEMLERİ
+            els.hud.classList.add('hidden');
+            els.pauseBtn.classList.add('hidden');
+            
+            // Z-index'i garantiye alıp gösteriyoruz
+            els.gameOver.style.zIndex = "100";
+            els.gameOver.classList.remove('hidden');
+        }
+
+        function showMainMenu() {
+            gameRunning = false;
+            isPaused = false;
+            els.gameOver.classList.add('hidden');
+            els.pauseScreen.classList.add('hidden');
+            els.hud.classList.add('hidden');
+            els.pauseBtn.classList.add('hidden');
+            els.mainMenu.classList.remove('hidden');
+            renderShop();
+            updateUI();
+        }
+
+        function togglePause() {
+            if(!gameRunning) return;
+            isPaused = !isPaused;
+            if(isPaused) els.pauseScreen.classList.remove('hidden');
+            else {
+                els.pauseScreen.classList.add('hidden');
+                loop();
+            }
+        }
+
+        function spawnFood() {
+            foods.push({
+                x: Math.random() * (canvas.width - 20) + 10,
+                y: Math.random() * (canvas.height - 20) + 10,
+                size: 8 + Math.random() * 4, // Mobilde yemler biraz daha küçük
+                color: `hsl(${Math.random() * 360}, 100%, 50%)`
+            });
+        }
+
+        // --- TOUCH CONTROLS (DOKUNMATİK) ---
+        let touchStartX = 0;
+        let touchStartY = 0;
+
+        document.addEventListener('touchstart', e => {
+            touchStartX = e.changedTouches[0].screenX;
+            touchStartY = e.changedTouches[0].screenY;
+        }, {passive: false});
+
+        document.addEventListener('touchmove', e => {
+            if(!gameRunning || isPaused) return;
+            e.preventDefault(); // Kaydırmayı engelle
+
+            let touchEndX = e.changedTouches[0].screenX;
+            let touchEndY = e.changedTouches[0].screenY;
+
+            let dx = touchEndX - touchStartX;
+            let dy = touchEndY - touchStartY;
+
+            if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return; // Küçük hareketleri yoksay
+
+            if (Math.abs(dx) > Math.abs(dy)) {
+                targetAngle = dx > 0 ? 0 : Math.PI;
+            } else {
+                targetAngle = dy > 0 ? Math.PI / 2 : -Math.PI / 2;
+            }
+        }, {passive: false});
+
+        // Klavye desteği de kalsın
+        document.addEventListener('keydown', e => {
+            if(!gameRunning || isPaused) return;
+            switch(e.key.toLowerCase()) {
+                case 'arrowright': case 'd': targetAngle = 0; break;
+                case 'arrowdown': case 's': targetAngle = Math.PI/2; break;
+                case 'arrowleft': case 'a': targetAngle = Math.PI; break;
+                case 'arrowup': case 'w': targetAngle = -Math.PI/2; break;
+            }
+        });
+
+        function update() {
+            if (!gameRunning || isPaused) return;
+
+            // Dönüş
+            let diff = targetAngle - snake.angle;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            snake.angle += diff * 0.2; // Mobilde dönüş biraz daha hızlı olsun (0.2)
+
+            // Hareket
+            snake.x += Math.cos(snake.angle) * CONSTANT_SPEED;
+            snake.y += Math.sin(snake.angle) * CONSTANT_SPEED;
+
+            // Kuyruk
+            snake.body.unshift({x: snake.x, y: snake.y});
+            let targetLen = 20 + (score / 2);
+            while (snake.body.length > targetLen) snake.body.pop();
+
+            // Kendine Çarpma
+            for(let i=30; i<snake.body.length; i++) {
+                if(Math.hypot(snake.x - snake.body[i].x, snake.y - snake.body[i].y) < snake.size) {
+                    handleGameOver("KENDİNİ ISIRDIN!"); return;
+                }
+            }
+            
+            // Duvar Çarpma
+            if(snake.x < 0 || snake.x > canvas.width || snake.y < 0 || snake.y > canvas.height) {
+                handleGameOver("DUVARA ÇARPTIN!"); return;
+            }
+
+            // Yem Yeme
+            for(let i=foods.length-1; i>=0; i--) {
+                let f = foods[i];
+                if(Math.hypot(snake.x - f.x, snake.y - f.y) < snake.size + f.size) {
+                    foods.splice(i, 1);
+                    score += 10;
+                    els.score.innerText = score;
+                    spawnFood();
+                    if(score > 0 && score % 100 === 0) {
+                        els.motivation.classList.add('pop-in');
+                        setTimeout(()=>els.motivation.classList.remove('pop-in'), 1500);
+                    }
+                }
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = '#222';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Grid
+            ctx.strokeStyle = '#333'; ctx.lineWidth = 1;
+            for(let i=0; i<canvas.width; i+=40) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); ctx.stroke(); }
+            for(let i=0; i<canvas.height; i+=40) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); ctx.stroke(); }
+
+            foods.forEach(f => {
+                ctx.beginPath(); ctx.arc(f.x, f.y, f.size, 0, Math.PI*2);
+                ctx.fillStyle = f.color; 
+                ctx.shadowBlur = 10; ctx.shadowColor = f.color;
+                ctx.fill(); ctx.shadowBlur = 0;
+            });
+
+            if(gameRunning) {
+                ctx.lineCap = 'round';
+                for(let i=0; i<snake.body.length; i+=2) {
+                    let p = snake.body[i];
+                    let size = snake.size * (0.7 + 0.3 * (1 - i/snake.body.length));
+                    
+                    const s = selectedSaturation;
+                    const l = selectedLightness;
+                    
+                    ctx.beginPath(); ctx.arc(p.x, p.y, size, 0, Math.PI*2);
+                    ctx.fillStyle = `hsl(${selectedHue + (i*1)}, ${s}%, ${l}%)`;
+                    ctx.fill();
+                }
+                ctx.save();
+                ctx.translate(snake.x, snake.y);
+                ctx.rotate(snake.angle);
+                let hc = `hsl(${selectedHue}, ${selectedSaturation}%, ${selectedLightness}%)`;
+                ctx.fillStyle = hc; ctx.shadowBlur = 15; ctx.shadowColor = hc;
+                ctx.beginPath(); ctx.arc(0,0, snake.size, 0, Math.PI*2); ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'white';
+                ctx.beginPath(); ctx.arc(4,-4,4,0,Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(4,4,4,0,Math.PI*2); ctx.fill();
+                ctx.fillStyle = 'black';
+                ctx.beginPath(); ctx.arc(6,-4,2,0,Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(6,4,2,0,Math.PI*2); ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        });
+
+        function loop() {
+            if(gameRunning && !isPaused) { update(); draw(); requestAnimationFrame(loop); }
+            else if(isPaused) draw();
+        }
+        
+        // Başlat
+        loadData();
+
+    </script>
+</body>
+</html>
